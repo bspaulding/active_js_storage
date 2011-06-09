@@ -10,8 +10,7 @@ function PersistentStore(name) {
     
     database.create_table('objects', {
       name:  { type: 'string' },
-      value: { type: 'string' },
-      type:  { type: 'string' }
+      value: { type: 'string' }
     });
   };
   
@@ -19,37 +18,34 @@ function PersistentStore(name) {
     database.execute_sql("DELETE FROM objects WHERE name = '" + key + "';", function(transaction, results) {
       database.insert('objects', { 
         name: key,
-        type: (typeof value),
-        value: escape(value.toString())
+        value: JSON.stringify( value, store.replacer )
       });      
     });
   }
 
   store.get = function(key, handler) {
     database.where('objects', "name = '" + key + "'", function(transaction, results) {
-      handler( store.reify( results.rows.item(0) ) );
+      handler( JSON.parse( results.rows.item(0).value, store.reviver ) );
     }); 
   }
   
-  store.reify = function(object) {
-    return store['reify_' + object.type](object);
+  // Replacer function for JSON.stringify
+  store.replacer = function(key, value) {
+    if( typeof value == 'function' )
+      return escape(value.toString());
+    return value;
+  }
+  
+  // Reviver function for JSON.parse
+  store.reviver = function(key, value) {
+    if( String(value).indexOf('function') == 0 )
+      return store.reify_function({ name: key, value: value });
+    return value;
   }
   
   store.reify_function = function(object) {
     eval( 'var ' + object.name + ' = ' + unescape(object.value) );
     return eval( object.name );
-  }
-  
-  store.reify_string = function(object) {
-    return object.value;
-  }
-  
-  store.reify_number = function(object) {
-    return parseFloat(object.value);
-  }
-  
-  store.reify_object = function(object) {
-    // TODO: how to do this asynchronously. :/
   }
   
   store.destroy = function() {
@@ -61,27 +57,7 @@ function PersistentStore(name) {
   return store;
 }
 
+// Test
 var store = new PersistentStore('persistent_store_test');
-store.set('hello', function() { alert('Hello PersistentStore!') });
-
-
-// KV Store Test
-// database.initialize('persistent_store_test');
-// database.drop_table('objects');
-// database.create_table('objects');
-// database.add_column('objects', 'name', 'string');
-// database.add_column('objects', 'type', 'string');
-// database.add_column('objects', 'value', 'string');
-// 
-// hello = function() { alert('Hello World!'); }
-// objecthash = { 
-//   name: 'hello',
-//   type: (typeof hello),
-//   value: escape(hello.toString())
-// }
-// database.insert('objects', objecthash);
-// 
-// database.where('objects', "name = 'hello'", function(transaction, results) {
-//   obj = results.rows.item(0);
-//   eval( obj.name + '=' + unescape(obj.value) );
-// });
+hello_object = { sayHello: function() { alert('Hello PersistentStore!') } }
+store.set('hello', hello_object);
