@@ -24,11 +24,10 @@ String.prototype.classize = function() {
   return words.join('');  
 }
 
-// Object.prototype.inspect = function() {
-//   str = '----------';
-
-//   for(i in this)
-//     str += '  ' + i + ': ' + this[i];
-
-//   return str += '\n';
-// }
+Function.prototype.bind = function(scope) {
+  var _function = this;
+  
+  return function() {
+    return _function.apply(scope, arguments);
+  }
+}
