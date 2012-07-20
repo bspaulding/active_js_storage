@@ -4,40 +4,78 @@
 
 function PersistentStore(name) { var store = new BoundObject({
   initialize: function() {
-    this.database = new Database(name);
-    
-    this.database.create_table('objects', {
-      name:  { type: 'string' },
-      value: { type: 'string' }
-    });
+    if( window.openDatabase ) {
+      this.store_type = 'database';
+      this.database = new Database(name);
+      
+      this.database.create_table('objects', {
+        name:  { type: 'string' },
+        value: { type: 'string' }
+      });
+    } else {
+      this.store_type = 'localStorage';
+    }
+
+    this.store_type = 'localStorage';
+
+    console.log('PersistentStore(' + name + ') is using store type "' + this.store_type + '"');
+  },
+
+  set: function(key, value) {
+    this['set_using_' + this.store_type](key, value);
   },
   
-  set: function(key, value) {
+  set_using_database: function(key, value) {
     this.database.execute_sql("DELETE FROM objects WHERE name = '" + key + "';", function(transaction, results) {
       this.database.insert('objects', { 
         name: key,
-        value: JSON.stringify( value, store.replacer )
+        value: JSON.stringify( value, this.replacer )
       });      
     }.bind(store));
   },
 
+  set_using_localStorage: function(key, value) {
+    console.log('set_using_localStorage, value => ')
+    console.log(value);
+    var keystr = key.toString();
+    var valuestr = JSON.stringify( value, this.replacer );
+
+    console.log('key => "' + keystr + '"')
+    console.log('value => "' + valuestr + '"');
+    localStorage.setItem( keystr, valuestr );
+  },
+
   get: function(key, handler) {
+    this['get_using_' + this.store_type](key, handler);
+  },
+
+  get_using_database: function(key, handler) {
     this.database.where('objects', "name = '" + key + "'", function(transaction, results) {
-      handler( JSON.parse( results.rows.item(0).value, store.reviver ) );
+      handler( JSON.parse( results.rows.item(0).value, this.reviver ) );
     }); 
+  },
+
+  get_using_localStorage: function(key, handler) {
+    handler( JSON.parse( localStorage.getItem(key), this.reviver ) );
   },
   
   // Replacer function for JSON.stringify
   replacer: function(key, value) {
-    if( typeof value == 'function' )
-      return escape(value.toString());
+    console.log('replacer ->')
+    console.log('value => ');
+    console.log(value);
+    if( typeof value == 'function' ) {
+      var valuestr = escape( value.toString() );
+      console.log('valuestr => ' + valuestr);
+      return valuestr;
+    }
     return value;
   },
   
   // Reviver function for JSON.parse
   reviver: function(key, value) {
     if( String(value).indexOf('function') == 0 )
-      return store.reify_function({ name: key, value: value });
+      return this.reify_function({ name: key, value: value });
     return value;
   },
   

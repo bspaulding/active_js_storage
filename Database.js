@@ -56,7 +56,7 @@ function Database(database_name, version, display_name, max_size) { var database
       
       sql += column_definitions.join(', ') + ')';
       this.execute_sql( sql );
-    });
+    }.bind(this));
   },
 
   column_definition: function(column_name, options) {
